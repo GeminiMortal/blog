@@ -150,8 +150,8 @@ async function tmtThrottle() {
   if (wait > 0) await new Promise(r => setTimeout(r, wait))
 }
 
-const TENCENT_TMT = { host: 'tmt.tencentcloudapi.com', proxyPath: '/__tencent', service: 'tmt', version: '2018-03-21', action: 'TextTranslate' }
-const EMPTY_CONFIG = { api: 'tencent', ai: { secretId: '', secretKey: '' } }
+const TENCENT_TMT = { host: 'tmt.tencentcloudapi.com', service: 'tmt', version: '2018-03-21', action: 'TextTranslate' }
+const EMPTY_CONFIG = { api: 'tencent', ai: { secretId: '', secretKey: '', proxy: '' } }
 
 export function getAiConfig() {
   const raw = localStorage.getItem('admin.ai')
@@ -196,7 +196,9 @@ export async function tencentTranslate(text, source, target, config) {
   const payload = JSON.stringify({ SourceText: text, Source: source, Target: target, ProjectId: 0 })
   const ts = Math.floor(Date.now() / 1000)
   await tmtThrottle() // 节流：确保 ≤4 次/秒，避开 TMT 限频 5 次/秒
-  const res = await fetch(TENCENT_TMT.proxyPath, {
+  // dev 模式（localhost）自动走 /__tencent 代理（Vite 转发）；生产模式用配置的代理或直连
+  const url = config.ai.proxy || (location.hostname === 'localhost' ? '/__tencent' : `https://${TENCENT_TMT.host}`)
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -173,7 +173,9 @@ onMounted(loadEntries)
               <input v-model="aiConfig.ai.secretId" placeholder="AKID..." />
               <label>SecretKey</label>
               <input v-model="aiConfig.ai.secretKey" type="password" placeholder="密钥" />
-              <div class="hint">腾讯云「机器翻译」控制台开通服务后，在「访问管理 → API 密钥」获取 SecretId/SecretKey。TextTranslate 接口有免费额度，调用量小无需付费。</div>
+              <label>代理地址（可选，留空则 dev 自动走本地代理，生产直连腾讯 API）</label>
+              <input v-model="aiConfig.ai.proxy" placeholder="https://your-cors-proxy.workers.dev" />
+              <div class="hint">腾讯云「机器翻译」控制台开通服务后，在「访问管理 → API 密钥」获取 SecretId/SecretKey。TextTranslate 接口有免费额度，调用量小无需付费。<br>本地开发（localhost）自动走 Vite 代理无需配置；生产环境需填写 CORS 代理地址（如 Cloudflare Worker），否则浏览器会因跨域被拦截。</div>
             </template>
 
             <template v-else>
