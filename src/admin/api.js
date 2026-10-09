@@ -52,6 +52,8 @@ async function ghPut(path, content, sha) {
   if (sha) body.sha = sha
   const res = await ghReq(path, { method: 'PUT', body: JSON.stringify(body) })
   if (!res.ok) throw new Error(`GitHub ${res.status}: ${await res.text()}`)
+  const data = await res.json()
+  return data.content.sha
 }
 
 async function ghDelete(path, sha) {
@@ -97,18 +99,23 @@ export async function writeFile(path, content, sha) {
   if (isLocal()) {
     const res = await fetch(`/__local/${path}`, { method: 'PUT', headers: { 'Content-Type': 'text/markdown' }, body: content })
     if (!res.ok) throw new Error('write failed')
-    return
+    return null
   }
-  await ghPut(path, content, sha)
+  return await ghPut(path, content, sha)
 }
 
-export async function deleteFile(path) {
+export async function deleteFile(path, sha) {
   if (isLocal()) {
     const res = await fetch(`/__local/${path}`, { method: 'DELETE' })
     if (!res.ok) throw new Error('delete failed')
     return
   }
-  const data = await ghGet(path)
+  if (!sha) {
+    const data = await ghGet(path)
+    if (!data) return
+    sha = data.sha
+  }
+  await ghDelete(path, sha)
   if (!data) return
   await ghDelete(path, data.sha)
 }

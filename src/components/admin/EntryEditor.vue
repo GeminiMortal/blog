@@ -2,7 +2,7 @@
 // 后台条目编辑器：语言 Tab + 结构化字段 + MarkdownEditor 组件（正文/详细描述）+ 保存 + AI 填充英文
 import { reactive, ref, computed, watch, onMounted } from 'vue'
 import { filePathsFor } from '../../admin/schema.js'
-import { parseFrontmatter, serializeDoc, readFile, writeFile, deleteFile, isLocal, getAiConfig, tencentTranslate, translateMarkdown } from '../../admin/api.js'
+import { parseFrontmatter, serializeDoc, readFileWithSha, writeFile, deleteFile, isLocal, getAiConfig, tencentTranslate, translateMarkdown } from '../../admin/api.js'
 import MarkdownEditor from './MarkdownEditor.vue'
 
 const props = defineProps({ col: { type: Object, required: true }, id: { type: String, default: '' } })
@@ -82,28 +82,32 @@ function ensureShape(values, fields) {
   }
 }
 
+const shaMap = reactive({ zh: null, en: null })
+
 async function load() {
   if (!props.id) {
-    // 新建：默认值就位
     for (const l of ['zh', 'en']) { ensureShape(doc[l].values, props.col.fields); doc[l].body = '' }
     if (props.col.name === 'projects' || props.col.name === 'awards') doc.zh.values.name = props.id
+    shaMap.zh = null
+    shaMap.en = null
     return
   }
   loading.value = true
   try {
     const paths = filePathsFor(props.col, props.col.fixedId || props.id)
-    const zhRaw = await readFile(paths.zh)
-    const enRaw = paths.en ? await readFile(paths.en) : null
-    const zh = parseFrontmatter(zhRaw || '')
-    const en = parseFrontmatter(enRaw || '')
+    const zhRes = await readFileWithSha(paths.zh)
+    const enRes = paths.en ? await readFileWithSha(paths.en) : { content: null, sha: null }
+    const zh = parseFrontmatter(zhRes.content || '')
+    const en = parseFrontmatter(enRes.content || '')
+    shaMap.zh = zhRes.sha
+    shaMap.en = enRes.sha
     doc.zh.values = zh.data || {}
     doc.zh.body = zh.body || ''
     doc.en.values = en.data || {}
     doc.en.body = en.body || ''
     ensureShape(doc.zh.values, props.col.fields)
     ensureShape(doc.en.values, props.col.fields)
-    // 新建（zh 文件不存在）：预填标识与日期（load 以 props.id 为准，可能与 openEntry 传入值竞态）
-    if (!zhRaw) {
+    if (!zhRes.content) {
       if ('name' in doc.zh.values && !doc.zh.values.name) doc.zh.values.name = props.col.fixedId || props.id
       if ('date' in doc.zh.values && !doc.zh.values.date) {
         const d = new Date()
@@ -152,7 +156,8 @@ async function saveLocale(l) {
     values[f.key] = v
   }
   const path = currentFileFor(l)
-  await writeFile(path, serializeDoc(values, doc[l].body))
+  const newSha = await writeFile(path, serializeDoc(values, doc[l].body), shaMap[l])
+  if (newSha) shaMap[l] = newSha
 }
 
 const noticeTimer = ref(null)
@@ -258,12 +263,12 @@ function removeItem(key, idx) {
   doc[locale.value].values[key].splice(idx, 1)
 }
 
-const canDelete = computed(() => props.id && !fixed.value && isLocal())
+const canDelete = computed(() => props.id && !fixed.value)
 async function remove() {
   if (!confirm(`删除 ${props.id} 的 zh+en 文件？`)) return
   const paths = filePathsFor(props.col, props.col.fixedId || props.id)
-  await deleteFile(paths.zh)
-  if (paths.en) await deleteFile(paths.en)
+  await deleteFile(paths.zh, shaMap.zh)
+  if (paths.en) await deleteFile(paths.en, shaMap.en)
   emit('saved')
   emit('back')
 }
