@@ -25,4 +25,6 @@ dist-ssr
 
 # Project specific
 learning
+!content/logs/
+src/data/playlist.json
 .env*
