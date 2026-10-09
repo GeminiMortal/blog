@@ -101,6 +101,11 @@ export async function writeFile(path, content, sha) {
     if (!res.ok) throw new Error('write failed')
     return null
   }
+  // GitHub 模式：sha 为空时自动读取（文件已存在必须带 sha，新文件 404 后不带 sha 创建）
+  if (!sha) {
+    const existing = await ghGet(path)
+    if (existing) sha = existing.sha
+  }
   return await ghPut(path, content, sha)
 }
 

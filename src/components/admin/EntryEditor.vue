@@ -156,7 +156,17 @@ async function saveLocale(l) {
     values[f.key] = v
   }
   const path = currentFileFor(l)
-  const newSha = await writeFile(path, serializeDoc(values, doc[l].body), shaMap[l])
+  let sha = shaMap[l]
+  // 兜底：sha 为空时先读一次拿 sha（文件已存在时 GitHub 必须带 sha）
+  if (!sha && isLocal() === false) {
+    try {
+      const { readFileWithSha } = await import('../../admin/api.js')
+      const res = await readFileWithSha(path)
+      sha = res.sha
+      if (sha) shaMap[l] = sha
+    } catch {}
+  }
+  const newSha = await writeFile(path, serializeDoc(values, doc[l].body), sha)
   if (newSha) shaMap[l] = newSha
 }
 
